@@ -56,15 +56,36 @@ gboolean canvas_mouse_press_cb( GtkWidget*      widget,
     if (sim->surface == NULL)
         return FALSE;
     if (event->button == GDK_BUTTON_PRIMARY) {
-        //randomizeArray2DInt(sim->env, sim->lenX, sim->lenY, 25, 25, 50);
         draw_env( widget, sim );
     }
     else if (event->button == GDK_BUTTON_SECONDARY) {
-        //randomizeArray2DInt(sim->env, sim->lenX, sim->lenY, 25, 25, 50);
         draw_env( widget, sim );
     }
     return TRUE;
 }
+
+/* Redraw the screen from the surface. Note that the ::draw
+ * signal receives a ready-to-be-used cairo_t that is already
+ * clipped to only draw the exposed areas of the widget
+ */
+gboolean canvas_draw_cb(    GtkWidget*  widget,
+                            cairo_t*    cr,
+                            sim_t*      sim ) {
+    if (sim->surface == NULL)
+        return FALSE;
+    cairo_set_source_surface( cr, sim->surface, 0, 0 );
+    cairo_paint( cr );
+
+    return FALSE;
+}
+
+// ########  ##     ## ######## ########  #######  ##    ##  ######
+// ##     ## ##     ##    ##       ##    ##     ## ###   ## ##    ##
+// ##     ## ##     ##    ##       ##    ##     ## ####  ## ##
+// ########  ##     ##    ##       ##    ##     ## ## ## ##  ######
+// ##     ## ##     ##    ##       ##    ##     ## ##  ####       ##
+// ##     ## ##     ##    ##       ##    ##     ## ##   ### ##    ##
+// ########   #######     ##       ##     #######  ##    ##  ######
 
 gboolean b_initialize_cb(  GtkWidget* widget,
                     GdkEventMotion* event,
@@ -73,7 +94,8 @@ gboolean b_initialize_cb(  GtkWidget* widget,
     sim_init( sim );
     // sim->drawingArea is defined at app initialization, so it should
         // exist by the time this is called
-    window_set_rate_sliders( sim );
+    window_initialize_rate_sliders( sim );
+    window_initialize_palette( sim );
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sim->ui.buttonToggle), FALSE);
     draw_env (sim->ui.drawingArea, sim);
 
@@ -92,17 +114,27 @@ gboolean b_run_toggle_cb(   GtkWidget* widget,
     return TRUE;
 }
 
+
+//  ######  ##       #### ########  ######## ########   ######
+// ##    ## ##        ##  ##     ## ##       ##     ## ##    ##
+// ##       ##        ##  ##     ## ##       ##     ## ##
+//  ######  ##        ##  ##     ## ######   ########   ######
+//       ## ##        ##  ##     ## ##       ##   ##         ##
+// ##    ## ##        ##  ##     ## ##       ##    ##  ##    ##
+//  ######  ######## #### ########  ######## ##     ##  ######
+
 gboolean s_sliders_cb(  GtkRange*       widget,
                         GtkScrollType   scroll,
                         gdouble         value,
-                        sim_t*          sim) {
+                        sim_t*          sim ) {
     int i;
 
     for (i=0; i<sim->nReactions; i++) {
         if (GTK_RANGE(widget) == GTK_RANGE(sim->ui.listSliders[i])) {
-            //printf("%d\n", i);
             sim->weightMatrix[sim->reactionList[i].source][sim->reactionList[i].sink]
                 = value;
+            // also change the corresponding spin button
+            gtk_spin_button_set_value( GTK_SPIN_BUTTON(sim->ui.listSpinButtons[i]), value );
             break;
         }
     }
@@ -111,17 +143,38 @@ gboolean s_sliders_cb(  GtkRange*       widget,
     return FALSE;
 }
 
-void window_set_rate_sliders( sim_t* sim ) {
-    // if sliders exist, destroy them; this is done because the number of
-        // sliders needed now might be different, and we don't know the
-        // previous value
-    if (sim->ui.gridSliders != NULL) {
+void e_spin_buttons_cb( GtkSpinButton*  spin_button,
+                            GtkScrollType   scroll,
+                            sim_t*          sim ) {
+    int i;
+    double value = gtk_spin_button_get_value( spin_button );
+    for (i=0; i<sim->nReactions; i++) {
+        if (spin_button == GTK_SPIN_BUTTON(sim->ui.listSpinButtons[i])) {
+            sim->weightMatrix[sim->reactionList[i].source][sim->reactionList[i].sink]
+                = value;
+            // also change the corresponding slider
+            gtk_range_set_value( GTK_RANGE(sim->ui.listSliders[i]), value );
+            break;
+        }
+    }
+}
+
+
+void window_initialize_rate_sliders( sim_t* sim ) {
+    /* Destroy existing sliders; this is done because the number of
+     * sliders needed now might be different, and we don't know the
+     * previous value
+     */
+    if (sim->ui.gridSliders != NULL || sim->ui.listSliders != NULL
+        || sim->ui.listSpinButtons != NULL) {
         // destroy grid widget; this should also destroy all its children
             // ie the sliders contained within grid
         gtk_widget_destroy( sim->ui.gridSliders );
         deallocateWidgetList( sim->ui.listSliders );
+        deallocateWidgetList( sim->ui.listSpinButtons );
         sim->ui.gridSliders = NULL;
         sim->ui.listSliders = NULL;
+        sim->ui.listSpinButtons = NULL;
     }
 
     int i;
@@ -131,27 +184,157 @@ void window_set_rate_sliders( sim_t* sim ) {
     gtk_container_add( GTK_CONTAINER(sim->ui.expanderSliders), sim->ui.gridSliders );
     // create slider array
     sim->ui.listSliders = allocateWidgetList( sim->nReactions );
+    sim->ui.listSpinButtons = allocateWidgetList( sim->nReactions );
 
     for (i=0; i<sim->nReactions; i++) {
+        // create widgets
         sim->ui.listSliders[i] = gtk_scale_new_with_range(
                     GTK_ORIENTATION_HORIZONTAL, 0.0, 50.0, 0.01 );
+        sim->ui.listSpinButtons[i] = gtk_spin_button_new_with_range(
+                    0.0, 50.0, 0.01 );
+
+        // configure slider
         gtk_scale_set_draw_value( GTK_SCALE(sim->ui.listSliders[i]), TRUE );
         gtk_range_set_value( GTK_RANGE(sim->ui.listSliders[i]),
                     sim->weightMatrix[sim->reactionList[i].source][sim->reactionList[i].sink] );
+        // configure spin button
+        gtk_spin_button_set_increments( GTK_SPIN_BUTTON(sim->ui.listSpinButtons[i]), 0.5, 5.0 );
+        gtk_spin_button_set_value( GTK_SPIN_BUTTON(sim->ui.listSpinButtons[i]),
+                    sim->weightMatrix[sim->reactionList[i].source][sim->reactionList[i].sink] );
+
+        // finalize widgets
         g_signal_connect( sim->ui.listSliders[i], "change-value",
                     G_CALLBACK(s_sliders_cb), sim );
-        gtk_grid_attach( GTK_GRID(sim->ui.gridSliders), sim->ui.listSliders[i], 0, i, 2, 1 );
+        g_signal_connect( sim->ui.listSpinButtons[i], "value-changed",
+                    G_CALLBACK(e_spin_buttons_cb), sim );
+        gtk_grid_attach( GTK_GRID(sim->ui.gridSliders), sim->ui.listSliders[i], 0, i, 1, 1 );
+        gtk_grid_attach( GTK_GRID(sim->ui.gridSliders), sim->ui.listSpinButtons[i], 1, i, 1, 1);
 
         // do not expand on window resize
         gtk_widget_set_size_request( sim->ui.listSliders[i], 150, 10 );
+        gtk_widget_set_size_request( sim->ui.listSpinButtons[i], 100, 10 );
+        // sliders
         gtk_widget_set_hexpand( sim->ui.listSliders[i], FALSE );
-        gtk_widget_set_halign( sim->ui.listSliders[i], GTK_ALIGN_START );
+        gtk_widget_set_halign( sim->ui.listSliders[i], GTK_ALIGN_FILL );
         gtk_widget_set_vexpand( sim->ui.listSliders[i], FALSE );
         gtk_widget_set_valign( sim->ui.listSliders[i], GTK_ALIGN_CENTER );
+        // spin button
+        gtk_widget_set_hexpand( sim->ui.listSpinButtons[i], FALSE );
+        gtk_widget_set_halign( sim->ui.listSpinButtons[i], GTK_ALIGN_END );
+        gtk_widget_set_vexpand( sim->ui.listSpinButtons[i], FALSE );
+        gtk_widget_set_valign( sim->ui.listSpinButtons[i], GTK_ALIGN_CENTER );
     }
     gtk_widget_show_all( sim->ui.gridSliders );
     return;
 }
+
+
+
+//  ######   #######  ##        #######  ########   ######
+// ##    ## ##     ## ##       ##     ## ##     ## ##    ##
+// ##       ##     ## ##       ##     ## ##     ## ##
+// ##       ##     ## ##       ##     ## ########   ######
+// ##       ##     ## ##       ##     ## ##   ##         ##
+// ##    ## ##     ## ##       ##     ## ##    ##  ##    ##
+//  ######   #######  ########  #######  ##     ##  ######
+
+
+void palette_color_chooser_cb( GtkColorButton* widget, sim_t* sim ) {
+    int i;
+    GdkRGBA* color = malloc(sizeof(GdkRGBA));
+
+    for (i=0; i<sim->nSpecies; i++) {
+        if (GTK_COLOR_CHOOSER(widget) == GTK_COLOR_CHOOSER(sim->ui.listColorButton[i])) {
+            gtk_color_chooser_get_rgba( GTK_COLOR_CHOOSER(widget), color );
+            sim->specieColor[i] = *color;
+        }
+    }
+    draw_env( sim->ui.drawingArea, sim );
+    return;
+}
+
+
+GdkRGBA random_RGB() {
+    GdkRGBA color;
+    color.red = (gdouble)rand()/RAND_MAX;
+    color.green = (gdouble)rand()/RAND_MAX;
+    color.blue = (gdouble)rand()/RAND_MAX;
+    color.alpha = 1.0;
+
+    return color;
+}
+
+
+GdkRGBA random_RGBA() {
+    GdkRGBA color;
+    color.red = (gdouble)rand()/RAND_MAX;
+    color.green = (gdouble)rand()/RAND_MAX;
+    color.blue = (gdouble)rand()/RAND_MAX;
+    color.alpha = (gdouble)rand()/RAND_MAX;
+
+    return color;
+}
+
+
+void window_initialize_palette( sim_t* sim ) {
+
+    int i;
+    GdkRGBA* color = malloc(sizeof(GdkRGBA));
+
+
+    /* Destroy existing palette; this is done because the number of
+     * sliders needed now might be different, and we don't know the
+     * previous value
+     */
+    if (sim->ui.gridPalette != NULL || sim->ui.listColorButton != NULL) {
+        // destroy grid widget; this should also destroy all its children
+            // ie the sliders contained within grid
+        gtk_widget_destroy( sim->ui.gridPalette );
+        deallocateWidgetList( sim->ui.listColorButton );
+        sim->ui.gridPalette = NULL;
+        sim->ui.listColorButton = NULL;
+    }
+
+
+    // create container
+    sim->ui.gridPalette = gtk_grid_new();
+    gtk_container_add( GTK_CONTAINER(sim->ui.expanderPalette), sim->ui.gridPalette );
+    // create slider array
+    sim->ui.listColorButton = allocateWidgetList( sim->nSpecies );
+
+
+    for (i=0; i<sim->nSpecies; i++) {
+        // create widgets
+        // NOTE: set gdkrgba handler
+        *color = random_RGB();
+        sim->ui.listColorButton[i] = gtk_color_button_new_with_rgba( color );
+        sim->specieColor[i] = *color;
+
+        // configure slider
+        //gtk_scale_set_draw_value( GTK_SCALE(sim->ui.listSliders[i]), TRUE );
+        //gtk_range_set_value( GTK_RANGE(sim->ui.listSliders[i]),
+        //            sim->weightMatrix[sim->reactionList[i].source][sim->reactionList[i].sink] );
+
+        // finalize widgets
+        g_signal_connect( sim->ui.listColorButton[i], "color-set",
+                    G_CALLBACK(palette_color_chooser_cb), sim );
+        gtk_grid_attach( GTK_GRID(sim->ui.gridPalette), sim->ui.listColorButton[i], i, 0, 1, 1 );
+
+        // do not expand on window resize
+        gtk_widget_set_size_request( sim->ui.listColorButton[i], 30, 10 );
+        // sliders
+        gtk_widget_set_hexpand( sim->ui.listColorButton[i], FALSE );
+        gtk_widget_set_halign( sim->ui.listColorButton[i], GTK_ALIGN_FILL );
+        gtk_widget_set_vexpand( sim->ui.listColorButton[i], FALSE );
+        gtk_widget_set_valign( sim->ui.listColorButton[i], GTK_ALIGN_CENTER );
+    }
+    gtk_widget_show_all( sim->ui.gridPalette );
+    return;
+}
+
+
+
+
 
 
 void close_window( sim_t* sim ) {
@@ -159,20 +342,18 @@ void close_window( sim_t* sim ) {
         cairo_surface_destroy( sim->surface );
 }
 
-/* Redraw the screen from the surface. Note that the ::draw
- * signal receives a ready-to-be-used cairo_t that is already
- * clipped to only draw the exposed areas of the widget
- */
-gboolean canvas_draw_cb(    GtkWidget*  widget,
-                            cairo_t*    cr,
-                            sim_t*      sim ) {
-    if (sim->surface == NULL)
-        return FALSE;
-    cairo_set_source_surface( cr, sim->surface, 0, 0 );
-    cairo_paint( cr );
 
-    return FALSE;
-}
+
+
+
+
+// #### ##    ## #### ########
+//  ##  ###   ##  ##     ##
+//  ##  ####  ##  ##     ##
+//  ##  ## ## ##  ##     ##
+//  ##  ##  ####  ##     ##
+//  ##  ##   ###  ##     ##
+// #### ##    ## ####    ##
 
 void app_init(  GtkApplication* app,
                 sim_t*          sim ) {
@@ -182,7 +363,9 @@ void app_init(  GtkApplication* app,
     GtkWidget* b_run_toggle;
     GtkWidget* f_drawing_area;
     GtkWidget* drawing_area;
-    GtkWidget* sc_sliders;  // scrollable container
+    GtkWidget* right_sidepanel;  // scrollable container
+    GtkWidget* g_right_sidepanel;
+    GtkWidget* e_palette;
     GtkWidget* e_sliders;   // expander
 
     // layout:
@@ -193,10 +376,14 @@ void app_init(  GtkApplication* app,
         ├-- b_run_toggle
         ├-- f_drawing_area
             ├-- drawing_area
-        ├-- sc_sliders
-            ├-- e_sliders
-                ├-- g_sliders
-                    ├-- array of sliders
+        ├-- right_sidepanel
+            ├-- g_right_sidepanel
+                ├-- e_palette
+                    ├-- g_palette
+                        ├-- array of color buttons
+                ├-- e_sliders
+                    ├-- g_sliders
+                        ├-- array of sliders
     */
 
     // create window
@@ -235,13 +422,24 @@ void app_init(  GtkApplication* app,
 
 
 
-    // create container for rate sliders
-    sc_sliders = gtk_scrolled_window_new( NULL, NULL );
-    gtk_widget_set_size_request( sc_sliders, 150, 10 );
-    gtk_grid_attach( GTK_GRID(g_top), sc_sliders, 6, 1, 1, 5 );
+    // create right sidepanel
+    right_sidepanel = gtk_scrolled_window_new( NULL, NULL );
+    gtk_widget_set_size_request( right_sidepanel, 300, 10 );
+    gtk_grid_attach( GTK_GRID(g_top), right_sidepanel, 6, 1, 2, 5 );
+    g_right_sidepanel = gtk_grid_new();
+    gtk_container_add( GTK_CONTAINER(right_sidepanel), g_right_sidepanel );
+    // create palette
+    e_palette = gtk_expander_new( "Palette" );
+    sim->ui.expanderPalette = e_palette;
+    gtk_expander_set_expanded( GTK_EXPANDER(e_palette), TRUE );
+    //gtk_container_add( GTK_CONTAINER(right_sidepanel), e_palette );
+    gtk_grid_attach( GTK_GRID(g_right_sidepanel), e_palette, 0, 0, 1, 1 );
+    // create rate sliders
     e_sliders = gtk_expander_new( "Rates" );
     sim->ui.expanderSliders = e_sliders;
-    gtk_container_add( GTK_CONTAINER(sc_sliders), e_sliders );
+    gtk_expander_set_expanded( GTK_EXPANDER(e_sliders), TRUE );
+    //gtk_container_add( GTK_CONTAINER(right_sidepanel), e_sliders );
+    gtk_grid_attach( GTK_GRID(g_right_sidepanel), e_sliders, 0, 1, 1, 1 );
 
 
 

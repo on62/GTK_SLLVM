@@ -10,9 +10,15 @@ typedef struct {
     GtkWidget*  drawingArea;
     GtkWidget*  buttonInitialize;
     GtkWidget*  buttonToggle;
+
+    GtkWidget*  expanderPalette;
+    GtkWidget*  gridPalette;
+    GtkWidget** listColorButton;
+
     GtkWidget*  expanderSliders;
     GtkWidget*  gridSliders;
-    GtkWidget**  listSliders;
+    GtkWidget** listSpinButtons;
+    GtkWidget** listSliders;
 } ui_t;
 
 typedef struct {
@@ -29,9 +35,10 @@ typedef struct {
     // arrays to store species colors using rgb channels
         // should be allocated length (nSpecies+1)
         // the extra cell (0) represents empty space
-    int* channelR;
-    int* channelG;
-    int* channelB;
+    GdkRGBA* specieColor;
+    //int* channelR;
+    //int* channelG;
+    //int* channelB;
     // weight matrix representing rates of reactions (birth/predation/death)
         // should be allocated of size (nSpecies+1)*(nSpecies+1)
         // the extra cell represents empty space used for birth/death rates
@@ -64,6 +71,7 @@ void sim_init( sim_t* sim );
     // absolute number of species is likely not gonna exceed order 10
 tuple_t* allocateTupleList(const int dim1);
 GtkWidget** allocateWidgetList(const int dim1);
+GdkRGBA* allocateArrayRGBA(const int dim1);
 void deallocateWidgetList( GtkWidget** widget );
 float* allocateArray1D(const int dim1);
 int* allocateArray1DInt(const int dim1);
@@ -90,11 +98,18 @@ gboolean s_sliders_cb(  GtkRange*       widget,
                         GtkScrollType   scroll,
                         gdouble         value,
                         sim_t*          sim);
+void e_spin_buttons_cb( GtkSpinButton*  spin_button,
+                            GtkScrollType   scroll,
+                            sim_t*          sim );
 void wr_b_detoggle (GtkButton* button, gpointer data);        // wrapper to trigger detoggling
 gboolean canvas_configure_cb(GtkWidget* widget, GdkEventConfigure* event, sim_t* sim);
 gboolean canvas_mouse_press_cb(GtkWidget* widget, GdkEventButton* event, sim_t* sim);
 gboolean canvas_mouse_motion_cb(GtkWidget* widget, GdkEventMotion* event, sim_t* sim);
 gboolean canvas_draw_cb(GtkWidget* widget, cairo_t* cr, sim_t* sim);
+void palette_color_chooser_cb( GtkColorButton* widget, sim_t* sim );
+GdkRGBA random_RGB();
+GdkRGBA random_RGBA();
 void close_window (sim_t* sim);
 void app_init(GtkApplication* app, sim_t* sim);
-void window_set_rate_sliders( sim_t* sim );
+void window_initialize_rate_sliders( sim_t* sim );
+void window_initialize_palette( sim_t* sim );

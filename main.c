@@ -14,6 +14,9 @@ int main (int argc, char** argv) {
     sim->env = NULL;
     sim->ui.gridSliders = NULL;
     sim->ui.listSliders = NULL;
+    sim->ui.listSpinButtons = NULL;
+    sim->ui.gridPalette = NULL;
+    sim->ui.listColorButton = NULL;
     // creates a GtkApplication object, with unique identifier
     app = gtk_application_new ("org.sllvm.visualizer", G_APPLICATION_FLAGS_NONE);
     // sets up the activate signal for when the app is started

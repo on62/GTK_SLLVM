@@ -22,6 +22,14 @@ void deallocateWidgetList( GtkWidget** widget ) {
 	free( widget );
 }
 
+GdkRGBA* allocateArrayRGBA(const int dim1) {
+	GdkRGBA* newArray;
+	newArray = (GdkRGBA*)malloc(dim1*sizeof(GdkRGBA));
+	if (newArray == NULL)
+		printf("Malloc failed!");
+	return newArray;	
+}
+
 float* allocateArray1D(const int dim1) {
 	float* newArray;
 	newArray = (float*)malloc(dim1*sizeof(float));

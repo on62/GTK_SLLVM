@@ -68,9 +68,9 @@ void draw_env( GtkWidget* widget, sim_t* sim ) {
         // rows
     for(i=0; i<sim->lenX; i++) {
         for(j=0; j<sim->lenY; j++) {
-            pixels[(j*rowstride + i*3) + 0] = sim->channelR[sim->env[i][j]];
-            pixels[(j*rowstride + i*3) + 1] = sim->channelG[sim->env[i][j]];
-            pixels[(j*rowstride + i*3) + 2] = sim->channelB[sim->env[i][j]];
+            pixels[(j*rowstride + i*3) + 0] = sim->specieColor[sim->env[i][j]].red * 255;
+            pixels[(j*rowstride + i*3) + 1] = sim->specieColor[sim->env[i][j]].green * 255;
+            pixels[(j*rowstride + i*3) + 2] = sim->specieColor[sim->env[i][j]].blue * 255;
         }
     }
 
